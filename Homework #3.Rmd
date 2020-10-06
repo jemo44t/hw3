@@ -1,0 +1,89 @@
+--------------------------------------------------
+title: 'Homework #3'
+author: "Ahabyona James"
+Group members: "Adil Ryskulov, Zhanna Sarsenova, Mst Parvin and Ahabyona James"
+--------------------------------------------------
+
+
+In order to use knn techniue on predicting the neighbors within NYC we need to load acs2017_ny file first.
+```{r echo=TRUE}
+load("C:/Users/User/Desktop/projects/Data/acs2017_ny_data.RData")
+attach(acs2017_ny)
+```
+
+
+
+Use a k-nn classification. Start by just trying to predict the borough not the neighborhood. Create this factor:
+```{r echo=TRUE}
+dat_NYC <- subset(acs2017_ny,(acs2017_ny$in_NYC==1)&(acs2017_ny$AGE>20)&(acs2017_ny$AGE<66))
+attach(dat_NYC)
+borough_f <- factor((in_Bronx + 2*in_Manhattan + 3*in_StatenI + 4*in_Brooklyn + 5*in_Queens), levels=c(1,2,3,4,5),labels = c("Bronx","Manhattan","Staten Island","Brooklyn","Queens"))
+```
+
+
+
+To get the data to all be in the (0,1) interval.
+```{r echo=TRUE}
+norm_varb <- function(X_in) {(X_in - min(X_in, na.rm = TRUE))/( max(X_in, na.rm = TRUE) - min(X_in, na.rm = TRUE) )}
+```
+
+
+
+--------------------------------------------------
+## Now find some other data that will do a better job of classifying. How good can you get it to be? At what point do you think there might be a tradeoff between better classifying the training data and doing worse at classifying the test data?
+
+Can you classify neighborhoods better? Perhaps there are some variables that easily classify certain neighborhoods? Try it.
+
+
+
+The neighborong borough shuld share near similar characteristics. In this assignment we decide to use cost of housing.
+As we know a housing clover to Central Business Distric (CBD) housings are smaller and more xpensive to rent, while housings ferther away from CBD are larger - with more rooms, more afordable rents and higher utility cost due to size. Thus, we will consider overall cost of hausing including with rental and utility costs, and total household income (OWNCOST, RENT, COSTELEC, COSTFUEL, COSTGAS, COSTWATR and HHINCOME).
+```{r echo=TRUE}
+is.na(OWNCOST) <- which(OWNCOST == 9999999)
+housing_cost_tot <- OWNCOST + RENT + COSTELEC + COSTFUEL + COSTGAS + COSTWATR
+norm_hh_inc <- norm_varb(HHINCOME)
+norm_housing_cost <- norm_varb(housing_cost_tot)
+```
+
+
+
+Here we create the dataframe to use,
+```{r echo=TRUE}
+data_use_prelim <- data.frame(norm_hh_inc,housing_cost_tot)
+good_obs_data_use <- complete.cases(data_use_prelim,borough_f)
+dat_use <- subset(data_use_prelim,good_obs_data_use)
+y_use <- subset(borough_f,good_obs_data_use)
+```
+
+
+
+Next we split the data into 2 parts: one part to train the algo, then the other part to test how well it works for new data. Here we use an 75/25 split.
+```{r echo=TRUE}
+set.seed(12345)
+NN_obs <- sum(good_obs_data_use == 1)
+select1 <- (runif(NN_obs) < 0.75)
+train_data <- subset(dat_use,select1)
+test_data <- subset(dat_use,(!select1))
+cl_data <- y_use[select1]
+true_data <- y_use[!select1]
+```
+
+
+
+Finally we run the k-nn algo and compare against the simple means,
+```{r echo=TRUE}
+summary(cl_data)
+prop.table(summary(cl_data))
+summary(train_data)
+require(class) 
+for (indx in seq(1, 9, by= 2)) {pred_borough <- knn(train_data, test_data, cl_data, k = indx, l = 0, prob = FALSE, use.all = TRUE)}
+num_correct_labels <- sum(pred_borough == true_data)
+correct_rate <- num_correct_labels/length(true_data)
+print(c(indx,correct_rate))
+```
+
+
+```{r echo=TRUE}
+detach(acs2017_ny)
+detach(dat_NYC)
+```
